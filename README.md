@@ -59,7 +59,10 @@ playing-card-recognizer/
 │   ├── commands.py
 │   ├── data/
 │   │   ├── __init__.py
+│   │   ├── datamodule.py
 │   │   ├── download.py
+│   │   ├── inspect.py
+│   │   ├── transforms.py
 │   │   └── validate.py
 │   ├── training/train.py
 │   ├── models/
@@ -68,6 +71,7 @@ playing-card-recognizer/
 │   └── utils/
 ├── tests/
 │   ├── test_configs.py
+│   ├── test_datamodule.py
 │   ├── test_data_validation.py
 │   └── test_package.py
 ├── data/raw/cards.dvc
@@ -146,7 +150,7 @@ The default configuration currently uses:
 
 ## Train config check
 
-At the current stage, the training entrypoint only loads and prints the composed Hydra configuration. Real data loading, model creation, training, validation, and logging will be added in later stages.
+At the current stage, the training entrypoint only loads and prints the composed Hydra configuration. Real model creation, training, validation, and logging will be added in later stages.
 
 Run the default config:
 
@@ -295,6 +299,37 @@ data/raw/cards/
 artifacts/class_to_idx.json
 ```
 
+## DataModule inspection
+
+The project provides a diagnostic command that builds the PyTorch Lightning DataModule and prints dataset sizes and one training batch shape.
+
+Run with the default config:
+
+```bash
+uv run python -m card_recognizer.data.inspect
+```
+
+For CPU-friendly debugging:
+
+```bash
+uv run python -m card_recognizer.data.inspect data.batch_size=8 data.num_workers=0
+```
+
+Expected dataset summary:
+
+```text
+train: 7624 samples, 53 classes
+valid: 265 samples, 53 classes
+test: 265 samples, 53 classes
+```
+
+Expected batch format:
+
+```text
+images: [batch_size, 3, 224, 224], dtype=torch.float32
+labels: [batch_size], dtype=torch.int64
+```
+
 ## Development checks
 
 Before committing changes, run:
@@ -351,12 +386,15 @@ Implemented:
 - dataset validation utility
 - deterministic `class_to_idx.json` generation
 - DVC initialization and tracking metadata
+- image preprocessing and augmentation transforms
+- PyTorch Lightning DataModule
+- DataModule inspection command
+- DataModule tests on a tiny synthetic ImageFolder dataset
 
 Not implemented yet:
 
-- PyTorch Lightning DataModule
-- image preprocessing and augmentation transforms
 - baseline CNN
+- PyTorch Lightning classification module
 - EfficientNet-B0 fine-tuning
 - MLflow experiment logging
 - training plots
@@ -365,8 +403,8 @@ Not implemented yet:
 
 ## Next steps
 
-- Implement image transforms
-- Implement `LightningDataModule`
-- Add tests for batch loading and tensor shapes
 - Implement baseline CNN
-- Implement the first real PyTorch Lightning training loop
+- Implement `LightningModule` for multiclass image classification
+- Add metrics with TorchMetrics
+- Run the first real training loop
+- Save the best checkpoint and validation metrics

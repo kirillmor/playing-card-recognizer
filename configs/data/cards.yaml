@@ -20,5 +20,24 @@ allowed_extensions:
   - .jpeg
   - .png
 
+normalization:
+  mean:
+    - 0.485
+    - 0.456
+    - 0.406
+  std:
+    - 0.229
+    - 0.224
+    - 0.225
+
+augmentation:
+  random_horizontal_flip_p: 0.0
+  random_rotation_degrees: 7
+  color_jitter:
+    brightness: 0.1
+    contrast: 0.1
+    saturation: 0.1
+    hue: 0.02
+
 class_mapping_path: ${paths.artifacts_dir}/class_to_idx.json
 dataset_report_path: ${paths.reports_dir}/dataset_report.md
