@@ -1,7 +1,7 @@
 defaults:
   - data: cards
-  - model: efficientnet_b0
-  - optimizer: adamw
+  - model: baseline_cnn
+  - optimizer: adam
   - trainer: cpu
   - logging: mlflow
   - inference: local

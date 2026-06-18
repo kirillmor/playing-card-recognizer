@@ -45,15 +45,21 @@ Current high-level structure:
 playing-card-recognizer/
 ├── configs/
 │   ├── config.yaml
-│   ├── data/cards.yaml
-│   ├── inference/local.yaml
-│   ├── logging/mlflow.yaml
-│   ├── model/baseline_cnn.yaml
-│   ├── model/efficientnet_b0.yaml
-│   ├── optimizer/adam.yaml
-│   ├── optimizer/adamw.yaml
-│   ├── trainer/cpu.yaml
-│   └── trainer/gpu.yaml
+│   ├── data/
+│   │   └── cards.yaml
+│   ├── inference/
+│   │   └── local.yaml
+│   ├── logging/
+│   │   └── mlflow.yaml
+│   ├── model/
+│   │   ├── baseline_cnn.yaml
+│   │   └── efficientnet_b0.yaml
+│   ├── optimizer/
+│   │   ├── adam.yaml
+│   │   └── adamw.yaml
+│   └── trainer/
+│       ├── cpu.yaml
+│       └── gpu.yaml
 ├── card_recognizer/
 │   ├── __init__.py
 │   ├── commands.py
@@ -64,18 +70,29 @@ playing-card-recognizer/
 │   │   ├── inspect.py
 │   │   ├── transforms.py
 │   │   └── validate.py
-│   ├── training/train.py
-│   ├── models/
-│   ├── inference/
 │   ├── export/
+│   ├── inference/
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── baseline_cnn.py
+│   │   ├── factory.py
+│   │   └── lightning_module.py
+│   ├── training/
+│   │   ├── __init__.py
+│   │   └── train.py
 │   └── utils/
 ├── tests/
 │   ├── test_configs.py
 │   ├── test_datamodule.py
 │   ├── test_data_validation.py
+│   ├── test_lightning_module.py
+│   ├── test_models.py
 │   └── test_package.py
-├── data/raw/cards.dvc
-├── artifacts/class_to_idx.json.dvc
+├── data/
+│   └── raw/
+│       └── cards.dvc
+├── artifacts/
+│   └── class_to_idx.json.dvc
 ├── plots/
 ├── reports/
 ├── scripts/
@@ -142,29 +159,13 @@ configs/inference/
 The default configuration currently uses:
 
 - dataset config: `configs/data/cards.yaml`
-- model config: `configs/model/efficientnet_b0.yaml`
-- optimizer config: `configs/optimizer/adamw.yaml`
+- model config: `configs/model/baseline_cnn.yaml`
+- optimizer config: `configs/optimizer/adam.yaml`
 - trainer config: `configs/trainer/cpu.yaml`
 - logging config: `configs/logging/mlflow.yaml`
 - inference config: `configs/inference/local.yaml`
 
-## Train config check
-
-At the current stage, the training entrypoint only loads and prints the composed Hydra configuration. Real model creation, training, validation, and logging will be added in later stages.
-
-Run the default config:
-
-```bash
-uv run python -m card_recognizer.training.train
-```
-
-Run with overrides:
-
-```bash
-uv run python -m card_recognizer.training.train model=baseline_cnn optimizer=adam data.batch_size=16
-```
-
-This is useful because experiments can be configured from the command line without editing Python code.
+The EfficientNet-B0 config is already present, but the current training pipeline starts with the baseline CNN because it is simpler and easier to debug end-to-end.
 
 ## Dataset
 
@@ -330,6 +331,141 @@ images: [batch_size, 3, 224, 224], dtype=torch.float32
 labels: [batch_size], dtype=torch.int64
 ```
 
+## Baseline model
+
+The current baseline is a small convolutional neural network implemented in:
+
+```text
+card_recognizer/models/baseline_cnn.py
+```
+
+Architecture:
+
+```text
+Input: [3, 224, 224]
+
+ConvBlock 1: 3   -> 32
+ConvBlock 2: 32  -> 64
+ConvBlock 3: 64  -> 128
+ConvBlock 4: 128 -> 256
+
+Each ConvBlock:
+Conv2d -> BatchNorm2d -> ReLU -> MaxPool2d
+
+Head:
+AdaptiveAvgPool2d -> Flatten -> Dropout -> Linear(num_classes)
+```
+
+The baseline is intentionally simple. Its purpose is to verify the full training pipeline before adding transfer learning with EfficientNet-B0.
+
+## Training
+
+The training entrypoint is:
+
+```bash
+uv run python -m card_recognizer.training.train
+```
+
+The training pipeline currently includes:
+
+- Hydra config loading;
+- deterministic seeding;
+- `CardsDataModule`;
+- baseline CNN model creation;
+- PyTorch Lightning `LightningModule`;
+- `CrossEntropyLoss`;
+- Adam/AdamW optimizer support;
+- optional cosine scheduler support;
+- TorchMetrics classification metrics;
+- model checkpointing by `val_macro_f1`;
+- early stopping by `val_macro_f1`;
+- final test evaluation using the best checkpoint.
+
+Logged metrics inside Lightning:
+
+```text
+train_loss
+train_accuracy
+train_macro_f1
+train_macro_precision
+train_macro_recall
+train_top3_accuracy
+
+val_loss
+val_accuracy
+val_macro_f1
+val_macro_precision
+val_macro_recall
+val_top3_accuracy
+
+test_loss
+test_accuracy
+test_macro_f1
+test_macro_precision
+test_macro_recall
+test_top3_accuracy
+```
+
+At this stage, MLflow logging is not enabled yet. Lightning logging is disabled with `logger=False`; MLflow will be added in a later step.
+
+## Smoke training
+
+Run a short CPU-friendly smoke training job:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  data.batch_size=8 \
+  data.num_workers=0 \
+  trainer.max_epochs=1 \
+  trainer.limit_train_batches=5 \
+  trainer.limit_val_batches=2 \
+  trainer.limit_test_batches=2
+```
+
+This command is intended to verify that the full training loop works without waiting for a full experiment.
+
+Expected behavior:
+
+- train dataloader is created;
+- model forward pass works;
+- loss is computed;
+- validation runs;
+- metrics are computed;
+- checkpoint is saved;
+- test evaluation runs using the best checkpoint.
+
+Check generated checkpoints:
+
+```bash
+find artifacts/checkpoints -maxdepth 3 -type f | sort
+```
+
+Checkpoint files are local/generated artifacts and must not be committed to git.
+
+## Full baseline training
+
+Run a longer baseline training job on CPU:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  model=baseline_cnn \
+  optimizer=adam \
+  trainer=cpu \
+  data.batch_size=32 \
+  data.num_workers=0 \
+  trainer.max_epochs=3
+```
+
+If a GPU is available, use:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  model=baseline_cnn \
+  optimizer=adam \
+  trainer=gpu \
+  data.batch_size=64
+```
+
 ## Development checks
 
 Before committing changes, run:
@@ -354,6 +490,7 @@ Generated/local artifacts must not be committed:
 outputs/
 data/raw/cards/
 artifacts/class_to_idx.json
+artifacts/checkpoints/
 mlruns/
 mlflow.db
 *.ckpt
@@ -381,7 +518,6 @@ Implemented:
 - pre-commit hooks
 - basic package import test
 - Hydra configuration skeleton
-- training config inspection entrypoint
 - Kaggle dataset download utility
 - dataset validation utility
 - deterministic `class_to_idx.json` generation
@@ -390,21 +526,26 @@ Implemented:
 - PyTorch Lightning DataModule
 - DataModule inspection command
 - DataModule tests on a tiny synthetic ImageFolder dataset
+- baseline CNN
+- model factory
+- PyTorch Lightning multiclass classification module
+- metrics with TorchMetrics
+- baseline smoke training pipeline
+- checkpointing and early stopping callbacks
 
 Not implemented yet:
 
-- baseline CNN
-- PyTorch Lightning classification module
-- EfficientNet-B0 fine-tuning
 - MLflow experiment logging
 - training plots
+- EfficientNet-B0 fine-tuning
 - ONNX/TensorRT export
+- local inference API
 - Triton inference serving
 
 ## Next steps
 
-- Implement baseline CNN
-- Implement `LightningModule` for multiclass image classification
-- Add metrics with TorchMetrics
-- Run the first real training loop
-- Save the best checkpoint and validation metrics
+- Add MLflow logging
+- Log hyperparameters, metrics, and git commit id
+- Save training plots to `plots/`
+- Improve training report generation
+- Implement EfficientNet-B0 transfer learning
