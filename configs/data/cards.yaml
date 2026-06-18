@@ -1,6 +1,8 @@
 name: cards
 num_classes: 53
 
+kaggle_dataset: gpiosenka/cards-image-datasetclassification
+
 raw_dir: ${paths.data_dir}/raw/cards
 processed_dir: ${paths.data_dir}/processed/cards
 
@@ -13,4 +15,10 @@ batch_size: 64
 num_workers: 4
 pin_memory: true
 
+allowed_extensions:
+  - .jpg
+  - .jpeg
+  - .png
+
 class_mapping_path: ${paths.artifacts_dir}/class_to_idx.json
+dataset_report_path: ${paths.reports_dir}/dataset_report.md

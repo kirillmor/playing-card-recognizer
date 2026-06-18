@@ -27,18 +27,11 @@ env/
 .env
 .env.*
 
-# Project data and artifacts
-data/*
-!data/.gitkeep
+# Hydra run outputs
+outputs/
 
-artifacts/*
-!artifacts/.gitkeep
-
-plots/*
-!plots/.gitkeep
-
-reports/generated/*
-!reports/.gitkeep
+# Kaggle credentials
+kaggle.json
 
 # MLflow
 mlruns/
@@ -46,6 +39,16 @@ mlflow.db
 
 # DVC cache
 .dvc/cache/
+
+# Raw data tracked by DVC
+data/raw/cards/
+
+# Generated artifacts tracked by DVC
+artifacts/class_to_idx.json
+
+# DVC metadata files must be committed
+!data/raw/cards.dvc
+!artifacts/class_to_idx.json.dvc
 
 # Model artifacts
 *.ckpt
@@ -56,5 +59,9 @@ mlflow.db
 *.engine
 *.trt
 
-# Hydra run outputs
-outputs/
+# Plots generated during training
+plots/**/*
+!plots/.gitkeep
+
+# Generated reports
+reports/generated/**/*

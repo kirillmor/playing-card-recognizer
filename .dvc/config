@@ -1,0 +1,6 @@
+[core]
+    remote = data-remote
+['remote "data-remote"']
+    url = ../../dvc-storage/playing-card-recognizer/data
+['remote "models-remote"']
+    url = ../../dvc-storage/playing-card-recognizer/models

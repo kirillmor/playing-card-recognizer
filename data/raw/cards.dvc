@@ -1,0 +1,6 @@
+outs:
+- md5: 2eb5a01be4ae9da0a3a9c3a822bc0d8b.dir
+  size: 431789634
+  nfiles: 8157
+  hash: md5
+  path: cards

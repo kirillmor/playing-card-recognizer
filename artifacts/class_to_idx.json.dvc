@@ -1,0 +1,5 @@
+outs:
+- md5: 66fc25812d0f8489dfecba5d2abf7ec1
+  size: 1269
+  hash: md5
+  path: class_to_idx.json
