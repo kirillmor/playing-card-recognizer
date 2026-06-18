@@ -1,8 +1,17 @@
 name: mlflow
 
+enabled: true
+
 tracking_uri: http://127.0.0.1:8080
 experiment_name: card-recognition
+run_name: ${model.name}-${trainer.name}
 
 log_hyperparams: true
 log_git_commit: true
 log_model: true
+log_artifacts: true
+
+plots_artifact_path: plots
+checkpoints_artifact_path: checkpoints
+
+save_plots: true

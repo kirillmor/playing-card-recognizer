@@ -24,7 +24,7 @@ Expected output:
 Python 3.13.14
 ```
 
-## Planned stack
+## Main stack
 
 - Python
 - PyTorch
@@ -79,15 +79,24 @@ playing-card-recognizer/
 │   │   └── lightning_module.py
 │   ├── training/
 │   │   ├── __init__.py
+│   │   ├── mlflow_utils.py
+│   │   ├── plots.py
 │   │   └── train.py
 │   └── utils/
+│       ├── __init__.py
+│       └── git.py
 ├── tests/
 │   ├── test_configs.py
 │   ├── test_datamodule.py
 │   ├── test_data_validation.py
+│   ├── test_git_utils.py
 │   ├── test_lightning_module.py
+│   ├── test_mlflow_utils.py
 │   ├── test_models.py
-│   └── test_package.py
+│   ├── test_package.py
+│   └── test_plots.py
+├── scripts/
+│   └── run_mlflow_server.sh
 ├── data/
 │   └── raw/
 │       └── cards.dvc
@@ -95,7 +104,6 @@ playing-card-recognizer/
 │   └── class_to_idx.json.dvc
 ├── plots/
 ├── reports/
-├── scripts/
 ├── .dvc/
 ├── .dvcignore
 ├── .gitignore
@@ -133,6 +141,23 @@ Check the project CLI:
 
 ```bash
 uv run card-recognizer
+```
+
+## Dependency notes
+
+The project uses MLflow together with Python 3.13. The dependency constraints should keep MLflow compatible with pandas and protobuf:
+
+```text
+pandas>=2.2,<3
+mlflow==3.14.0
+protobuf>=5.29,<6
+```
+
+Verify MLflow:
+
+```bash
+uv run python -c "import pandas; import mlflow; import google.protobuf; print('pandas', pandas.__version__); print('mlflow', mlflow.__version__); print('protobuf', google.protobuf.__version__)"
+uv run mlflow --version
 ```
 
 ## Configuration
@@ -379,9 +404,15 @@ The training pipeline currently includes:
 - TorchMetrics classification metrics;
 - model checkpointing by `val_macro_f1`;
 - early stopping by `val_macro_f1`;
+- MLflow logger integration;
+- hyperparameter logging;
+- git commit hash logging;
+- git dirty-state logging;
+- local plot saving;
+- plot artifact logging to MLflow;
 - final test evaluation using the best checkpoint.
 
-Logged metrics inside Lightning:
+Logged metrics:
 
 ```text
 train_loss
@@ -406,9 +437,35 @@ test_macro_recall
 test_top3_accuracy
 ```
 
-At this stage, MLflow logging is not enabled yet. Lightning logging is disabled with `logger=False`; MLflow will be added in a later step.
+## MLflow Tracking Server
 
-## Smoke training
+Start the local MLflow Tracking Server in a separate terminal:
+
+```bash
+uv run bash scripts/run_mlflow_server.sh
+```
+
+The script starts MLflow on:
+
+```text
+http://127.0.0.1:8080
+```
+
+The tracking backend is stored locally in:
+
+```text
+mlflow.db
+```
+
+Artifacts are stored locally in:
+
+```text
+mlruns/
+```
+
+Both `mlflow.db` and `mlruns/` are local generated artifacts and must not be committed to git.
+
+## Smoke training with MLflow
 
 Run a short CPU-friendly smoke training job:
 
@@ -422,8 +479,6 @@ uv run python -m card_recognizer.training.train \
   trainer.limit_test_batches=2
 ```
 
-This command is intended to verify that the full training loop works without waiting for a full experiment.
-
 Expected behavior:
 
 - train dataloader is created;
@@ -431,8 +486,93 @@ Expected behavior:
 - loss is computed;
 - validation runs;
 - metrics are computed;
+- MLflow run is created;
+- hyperparameters are logged;
+- git metadata is logged;
 - checkpoint is saved;
+- local plots are saved;
+- plots are logged to MLflow artifacts;
 - test evaluation runs using the best checkpoint.
+
+Open the MLflow UI:
+
+```text
+http://127.0.0.1:8080
+```
+
+Expected MLflow experiment:
+
+```text
+card-recognition
+```
+
+Expected MLflow run content:
+
+```text
+params
+metrics
+artifacts
+tags
+```
+
+Useful metadata to check:
+
+```text
+git_commit
+git_dirty
+```
+
+## Training without MLflow
+
+For local debugging, MLflow can be disabled:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  logging.enabled=false \
+  data.batch_size=8 \
+  data.num_workers=0 \
+  trainer.max_epochs=1 \
+  trainer.limit_train_batches=5 \
+  trainer.limit_val_batches=2 \
+  trainer.limit_test_batches=2
+```
+
+Local plots are still saved if `logging.save_plots=true`.
+
+## Training plots
+
+Training plots are saved under:
+
+```text
+plots/<model_name>/
+```
+
+For the baseline CNN:
+
+```text
+plots/baseline_cnn/
+├── accuracy.png
+├── loss.png
+├── macro_f1.png
+├── metrics_history.json
+└── top3_accuracy.png
+```
+
+At least three plots are generated during training. These plots are local generated artifacts and should not be committed to git.
+
+## Checkpoints
+
+Checkpoints are saved under:
+
+```text
+artifacts/checkpoints/<model_name>/
+```
+
+For the baseline CNN:
+
+```text
+artifacts/checkpoints/baseline_cnn/
+```
 
 Check generated checkpoints:
 
@@ -491,6 +631,7 @@ outputs/
 data/raw/cards/
 artifacts/class_to_idx.json
 artifacts/checkpoints/
+plots/*/
 mlruns/
 mlflow.db
 *.ckpt
@@ -532,11 +673,17 @@ Implemented:
 - metrics with TorchMetrics
 - baseline smoke training pipeline
 - checkpointing and early stopping callbacks
+- MLflow Tracking Server script
+- Lightning MLflow logger integration
+- hyperparameter logging
+- git commit hash logging
+- git dirty-state logging
+- local training plots
+- plot artifact logging to MLflow
+- metrics history JSON
 
 Not implemented yet:
 
-- MLflow experiment logging
-- training plots
 - EfficientNet-B0 fine-tuning
 - ONNX/TensorRT export
 - local inference API
@@ -544,8 +691,8 @@ Not implemented yet:
 
 ## Next steps
 
-- Add MLflow logging
-- Log hyperparameters, metrics, and git commit id
-- Save training plots to `plots/`
-- Improve training report generation
 - Implement EfficientNet-B0 transfer learning
+- Compare baseline CNN and EfficientNet-B0
+- Add richer evaluation reports
+- Export the best model to ONNX
+- Prepare TensorRT and Triton serving
