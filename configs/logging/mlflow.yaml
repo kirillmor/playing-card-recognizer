@@ -1,0 +1,8 @@
+name: mlflow
+
+tracking_uri: http://127.0.0.1:8080
+experiment_name: card-recognition
+
+log_hyperparams: true
+log_git_commit: true
+log_model: true

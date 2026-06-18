@@ -1,0 +1,10 @@
+name: efficientnet_b0
+num_classes: ${data.num_classes}
+
+pretrained: true
+weights: DEFAULT
+dropout: 0.2
+
+training_strategy:
+  freeze_backbone_epochs: 5
+  fine_tune_epochs: 20

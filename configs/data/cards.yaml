@@ -1,0 +1,16 @@
+name: cards
+num_classes: 53
+
+raw_dir: ${paths.data_dir}/raw/cards
+processed_dir: ${paths.data_dir}/processed/cards
+
+train_dir: ${data.raw_dir}/train
+valid_dir: ${data.raw_dir}/valid
+test_dir: ${data.raw_dir}/test
+
+image_size: 224
+batch_size: 64
+num_workers: 4
+pin_memory: true
+
+class_mapping_path: ${paths.artifacts_dir}/class_to_idx.json

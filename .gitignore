@@ -55,3 +55,6 @@ mlflow.db
 *.plan
 *.engine
 *.trt
+
+# Hydra run outputs
+outputs/

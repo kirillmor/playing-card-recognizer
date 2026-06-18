@@ -1,0 +1,17 @@
+defaults:
+  - data: cards
+  - model: efficientnet_b0
+  - optimizer: adamw
+  - trainer: cpu
+  - logging: mlflow
+  - inference: local
+  - _self_
+
+project_name: playing-card-recognizer
+seed: 42
+
+paths:
+  data_dir: data
+  artifacts_dir: artifacts
+  plots_dir: plots
+  reports_dir: reports
