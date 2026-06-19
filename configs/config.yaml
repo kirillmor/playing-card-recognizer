@@ -6,6 +6,7 @@ defaults:
   - logging: mlflow
   - inference: local
   - evaluation: default
+  - selection: default
   - _self_
 
 project_name: playing-card-recognizer

@@ -1,0 +1,17 @@
+name: default
+
+models:
+  - baseline_cnn
+  - efficientnet_b0
+
+metric: macro_f1
+higher_is_better: true
+
+reports_root: ${paths.reports_dir}/evaluation
+output_dir: ${paths.reports_dir}/model_comparison
+
+summary_filename: summary_metrics.json
+bootstrap_filename: bootstrap_confidence_intervals.csv
+comparison_filename: comparison.csv
+comparison_markdown_filename: comparison.md
+best_model_filename: best_model.json

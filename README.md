@@ -4,28 +4,30 @@ A reproducible MLOps project for playing card image classification.
 
 ## Project overview
 
-The goal of this project is to build an image classification system that recognizes a single playing card from an input image. The task is formulated as multiclass image classification with 53 classes.
+The goal is to build a system that recognizes a single playing card from an input image. The task is formulated as multiclass image classification with 53 classes.
 
-The project is focused not only on model quality, but also on reproducibility, experiment tracking, data versioning, model packaging, evaluation reporting, and inference serving.
+The project focuses on reproducibility, experiment tracking, data versioning, evaluation reporting, model comparison, and future inference serving.
 
-## Current verified stage
+## Current stage
 
-At the current stage, the project has:
+Implemented and verified:
 
-- a working PyTorch Lightning training pipeline;
-- baseline CNN training;
+- PyTorch Lightning training pipeline;
+- baseline CNN model;
 - EfficientNet-B0 transfer learning support;
 - CUDA/GPU training support;
 - MLflow experiment tracking;
 - local training plots;
 - DVC-tracked dataset metadata;
-- standalone evaluation reports;
+- evaluation reports;
+- bootstrap confidence intervals for evaluation metrics;
 - confusion matrix plots;
 - per-class classification report;
 - predictions table;
-- evaluation metrics logged to MLflow.
+- model comparison reports;
+- best-model selection by configurable metric.
 
-Verified locally:
+Verified local GPU setup:
 
 ```text
 GPU: NVIDIA GeForce RTX 3050 Ti Laptop GPU
@@ -49,7 +51,7 @@ uv run python -m card_recognizer.training.train \
 
 ## Python version
 
-This project is pinned to Python 3.13.14.
+The project is pinned to Python 3.13.14.
 
 ```bash
 uv python install 3.13.14
@@ -87,85 +89,38 @@ Planned production stack:
 
 ## Repository structure
 
-Current high-level structure:
-
 ```text
 playing-card-recognizer/
 ├── configs/
 │   ├── config.yaml
-│   ├── data/
-│   │   └── cards.yaml
-│   ├── evaluation/
-│   │   └── default.yaml
-│   ├── inference/
-│   │   └── local.yaml
-│   ├── logging/
-│   │   └── mlflow.yaml
-│   ├── model/
-│   │   ├── baseline_cnn.yaml
-│   │   └── efficientnet_b0.yaml
-│   ├── optimizer/
-│   │   ├── adam.yaml
-│   │   └── adamw.yaml
+│   ├── data/cards.yaml
+│   ├── evaluation/default.yaml
+│   ├── inference/local.yaml
+│   ├── logging/mlflow.yaml
+│   ├── model/baseline_cnn.yaml
+│   ├── model/efficientnet_b0.yaml
+│   ├── optimizer/adam.yaml
+│   ├── optimizer/adamw.yaml
+│   ├── selection/default.yaml
 │   └── trainer/
 │       ├── cpu.yaml
 │       └── gpu.yaml
 ├── card_recognizer/
-│   ├── __init__.py
-│   ├── commands.py
 │   ├── data/
-│   │   ├── datamodule.py
-│   │   ├── download.py
-│   │   ├── inspect.py
-│   │   ├── transforms.py
-│   │   └── validate.py
 │   ├── evaluation/
-│   │   ├── __init__.py
-│   │   ├── evaluate.py
-│   │   ├── metrics.py
-│   │   └── plots.py
 │   ├── export/
 │   ├── inference/
 │   ├── models/
-│   │   ├── baseline_cnn.py
-│   │   ├── efficientnet.py
-│   │   ├── factory.py
-│   │   └── lightning_module.py
+│   ├── selection/
 │   ├── training/
-│   │   ├── finetuning.py
-│   │   ├── mlflow_utils.py
-│   │   ├── plots.py
-│   │   └── train.py
 │   └── utils/
-│       └── git.py
 ├── tests/
-│   ├── test_configs.py
-│   ├── test_datamodule.py
-│   ├── test_data_validation.py
-│   ├── test_efficientnet.py
-│   ├── test_evaluation_metrics.py
-│   ├── test_git_utils.py
-│   ├── test_lightning_module.py
-│   ├── test_mlflow_utils.py
-│   ├── test_models.py
-│   ├── test_package.py
-│   └── test_plots.py
 ├── scripts/
 │   └── run_mlflow_server.sh
-├── data/
-│   └── raw/
-│       └── cards.dvc
-├── artifacts/
-│   └── class_to_idx.json.dvc
-├── plots/
-│   └── .gitkeep
-├── reports/
-│   └── .gitkeep
-├── .dvc/
-├── .dvcignore
-├── .gitignore
-├── .python-version
-├── .pre-commit-config.yaml
+├── data/raw/cards.dvc
+├── artifacts/class_to_idx.json.dvc
+├── plots/.gitkeep
+├── reports/.gitkeep
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -173,7 +128,7 @@ playing-card-recognizer/
 
 ## Setup
 
-Install the pinned Python version and synchronize the project environment:
+Install Python and synchronize dependencies:
 
 ```bash
 uv python install 3.13.14
@@ -193,7 +148,7 @@ Run tests:
 uv run pytest
 ```
 
-Run all quality checks:
+Run all checks:
 
 ```bash
 uv run pre-commit run --all-files
@@ -201,13 +156,13 @@ uv run pre-commit run --all-files
 
 ## CUDA / GPU verification
 
-Check that the NVIDIA driver is visible:
+Check NVIDIA driver visibility:
 
 ```bash
 nvidia-smi
 ```
 
-Check that PyTorch sees CUDA:
+Check PyTorch CUDA support:
 
 ```bash
 uv run python - <<'PY'
@@ -223,7 +178,7 @@ if torch.cuda.is_available():
 PY
 ```
 
-Expected behavior on the verified local machine:
+Expected behavior on the verified machine:
 
 ```text
 cuda available: True
@@ -233,7 +188,7 @@ device name: NVIDIA GeForce RTX 3050 Ti Laptop GPU
 
 ## Configuration
 
-The project uses Hydra for hierarchical configuration management.
+Hydra is used for hierarchical configuration.
 
 Main config:
 
@@ -251,9 +206,10 @@ configs/trainer/
 configs/logging/
 configs/inference/
 configs/evaluation/
+configs/selection/
 ```
 
-The default configuration currently uses:
+The default configuration uses:
 
 - dataset config: `configs/data/cards.yaml`;
 - model config: `configs/model/baseline_cnn.yaml`;
@@ -261,17 +217,16 @@ The default configuration currently uses:
 - trainer config: `configs/trainer/cpu.yaml`;
 - logging config: `configs/logging/mlflow.yaml`;
 - inference config: `configs/inference/local.yaml`;
-- evaluation config: `configs/evaluation/default.yaml`.
+- evaluation config: `configs/evaluation/default.yaml`;
+- selection config: `configs/selection/default.yaml`.
 
-The GPU trainer config uses:
+GPU trainer config:
 
 ```yaml
 accelerator: gpu
 devices: 1
 precision: 16-mixed
 ```
-
-Mixed precision is useful on laptop GPUs because it reduces VRAM usage and can speed up training.
 
 ## Dataset
 
@@ -281,7 +236,7 @@ The project uses the Kaggle dataset:
 gpiosenka/cards-image-datasetclassification
 ```
 
-The expected raw dataset layout is:
+Expected raw dataset layout:
 
 ```text
 data/raw/cards/
@@ -289,8 +244,6 @@ data/raw/cards/
 ├── valid/
 └── test/
 ```
-
-Each split contains one subdirectory per class.
 
 Expected dataset summary:
 
@@ -301,8 +254,6 @@ test: 53 classes, 265 images
 ```
 
 ## Kaggle credentials
-
-For local development, the dataset may be downloaded from Kaggle.
 
 Option 1: environment variables:
 
@@ -323,37 +274,29 @@ Do not commit `kaggle.json`.
 
 ## Data download and validation
 
-Download raw data:
+Download data:
 
 ```bash
 uv run python -m card_recognizer.data.download
 ```
 
-Validate dataset structure and save the class mapping:
+Validate data and generate class mapping:
 
 ```bash
 uv run python -m card_recognizer.data.validate
 ```
 
-The validation command checks that:
+The validation command checks split structure, class consistency, image readability, and creates:
 
-- `train`, `valid`, and `test` directories exist;
-- each split contains the same set of class directories;
-- the train split contains the expected number of classes;
-- image files can be opened with Pillow;
-- `artifacts/class_to_idx.json` is generated.
+```text
+artifacts/class_to_idx.json
+```
 
 ## DVC
 
-The project uses DVC for data and generated artifact tracking.
+DVC is used for data and generated artifact tracking.
 
-Initialize DVC:
-
-```bash
-uv run dvc init
-```
-
-For local development, create local DVC remotes outside the repository:
+Local DVC remotes:
 
 ```bash
 mkdir -p ../dvc-storage/playing-card-recognizer/data
@@ -362,26 +305,26 @@ uv run dvc remote add -d data-remote ../dvc-storage/playing-card-recognizer/data
 uv run dvc remote add models-remote ../dvc-storage/playing-card-recognizer/models
 ```
 
-Track raw data and generated class mapping:
+Track raw data and class mapping:
 
 ```bash
 uv run dvc add data/raw/cards
 uv run dvc add artifacts/class_to_idx.json
 ```
 
-Push DVC-tracked files to the configured remote:
+Push DVC-tracked files:
 
 ```bash
 uv run dvc push -r data-remote
 ```
 
-Pull DVC-tracked files after cloning the repository:
+Pull after cloning:
 
 ```bash
 uv run dvc pull
 ```
 
-The following files are committed to git:
+Committed DVC metadata:
 
 ```text
 data/raw/cards.dvc
@@ -390,30 +333,23 @@ artifacts/class_to_idx.json.dvc
 .dvcignore
 ```
 
-The following files are not committed to git:
-
-```text
-data/raw/cards/
-artifacts/class_to_idx.json
-```
+Actual raw data and generated class mapping are not committed to git.
 
 ## DataModule inspection
 
-The project provides a diagnostic command that builds the PyTorch Lightning DataModule and prints dataset sizes and one training batch shape.
-
-Run with the default config:
+Run:
 
 ```bash
 uv run python -m card_recognizer.data.inspect
 ```
 
-For debugging:
+Debug run:
 
 ```bash
 uv run python -m card_recognizer.data.inspect data.batch_size=8 data.num_workers=0
 ```
 
-For a faster local run with worker processes:
+Faster local run:
 
 ```bash
 uv run python -m card_recognizer.data.inspect data.batch_size=32 data.num_workers=4
@@ -430,7 +366,7 @@ labels: [batch_size], dtype=torch.int64
 
 ### Baseline CNN
 
-The baseline model is implemented in:
+Implemented in:
 
 ```text
 card_recognizer/models/baseline_cnn.py
@@ -453,23 +389,21 @@ Head:
 AdaptiveAvgPool2d -> Flatten -> Dropout -> Linear(num_classes)
 ```
 
-The baseline is intentionally simple. Its purpose is to verify the full MLOps pipeline before comparing it with a stronger transfer learning model.
-
 ### EfficientNet-B0
 
-The project includes EfficientNet-B0 configuration and transfer learning support.
+The project includes EfficientNet-B0 transfer learning support.
 
-Expected strategy:
+Strategy:
 
 ```text
-1. Replace the classifier head with a 53-class head.
-2. Freeze the pretrained backbone for the first training stage.
-3. Train the classification head.
-4. Unfreeze the backbone.
-5. Fine-tune with separate learning rates for backbone and head.
+1. Replace classifier head with a 53-class head.
+2. Freeze pretrained backbone for the first stage.
+3. Train classifier head.
+4. Unfreeze backbone.
+5. Fine-tune with separate learning rates.
 ```
 
-The EfficientNet-B0 model uses the `adamw` optimizer config with separate learning rates:
+AdamW config:
 
 ```yaml
 backbone_lr: 0.0001
@@ -479,7 +413,7 @@ weight_decay: 0.0001
 
 ## Training
 
-The training entrypoint is:
+Training entrypoint:
 
 ```bash
 uv run python -m card_recognizer.training.train
@@ -489,24 +423,23 @@ The training pipeline includes:
 
 - Hydra config loading;
 - deterministic seeding;
-- `CardsDataModule`;
+- PyTorch Lightning DataModule;
 - model factory;
-- PyTorch Lightning `LightningModule`;
-- `CrossEntropyLoss`;
+- LightningModule;
+- CrossEntropyLoss;
 - Adam/AdamW optimizer support;
 - optional cosine scheduler support;
 - TorchMetrics classification metrics;
-- model checkpointing by `val_macro_f1`;
+- checkpointing by `val_macro_f1`;
 - early stopping by `val_macro_f1`;
 - MLflow logger integration;
 - hyperparameter logging;
-- git commit hash logging;
-- git dirty-state logging;
+- git metadata logging;
 - local plot saving;
 - plot artifact logging to MLflow;
 - final test evaluation using the best checkpoint.
 
-Logged metrics during training:
+Logged training metrics:
 
 ```text
 train_loss
@@ -533,41 +466,34 @@ test_top3_accuracy
 
 ## MLflow Tracking Server
 
-Start the local MLflow Tracking Server in a separate terminal:
+Start MLflow server in a separate terminal:
 
 ```bash
 uv run bash scripts/run_mlflow_server.sh
 ```
 
-The server is available at:
+Server URL:
 
 ```text
 http://127.0.0.1:8080
 ```
 
-The tracking backend is stored locally in:
+Local MLflow files:
 
 ```text
 mlflow.db
-```
-
-Artifacts are stored locally in:
-
-```text
 mlruns/
 ```
 
-Both `mlflow.db` and `mlruns/` are local generated artifacts and must not be committed to git.
+These are generated local files and are not committed.
 
-To reset local MLflow state during development:
+Reset local MLflow state:
 
 ```bash
 rm -rf mlruns mlflow.db
 ```
 
 ## Baseline CNN GPU training
-
-Run the verified baseline GPU training command:
 
 ```bash
 uv run python -m card_recognizer.training.train \
@@ -579,12 +505,12 @@ uv run python -m card_recognizer.training.train \
   trainer.max_epochs=3
 ```
 
-This command should:
+This should:
 
-- use the CUDA GPU;
+- use CUDA GPU;
 - create an MLflow run;
 - log hyperparameters;
-- log train/validation/test metrics;
+- log metrics;
 - log git metadata;
 - save checkpoints;
 - save plots under `plots/baseline_cnn/`;
@@ -592,7 +518,7 @@ This command should:
 
 ## EfficientNet-B0 GPU training
 
-For EfficientNet-B0 on a 4 GB laptop GPU, start with a smaller batch size:
+For a 4 GB laptop GPU, start with a smaller batch size:
 
 ```bash
 uv run python -m card_recognizer.training.train \
@@ -616,16 +542,9 @@ uv run python -m card_recognizer.training.train \
   trainer.max_epochs=10
 ```
 
-If CUDA runs out of memory, decrease the batch size:
-
-```text
-data.batch_size=8
-data.batch_size=4
-```
-
 ## Evaluation
 
-The evaluation entrypoint is:
+Evaluation entrypoint:
 
 ```bash
 uv run python -m card_recognizer.evaluation.evaluate
@@ -640,21 +559,17 @@ The evaluation pipeline includes:
 - confusion matrix computation;
 - per-class precision, recall, F1, and support;
 - macro/weighted summary metrics;
+- bootstrap confidence intervals;
 - predictions CSV;
 - confusion matrix plots;
 - worst-classes-by-F1 plot;
 - optional MLflow logging.
 
-Evaluation config:
-
-```text
-configs/evaluation/default.yaml
-```
-
-Default evaluation outputs:
+Evaluation outputs:
 
 ```text
 reports/evaluation/<model_name>/
+├── bootstrap_confidence_intervals.csv
 ├── classification_report.csv
 ├── confusion_matrix.csv
 ├── predictions.csv
@@ -666,9 +581,9 @@ plots/<model_name>/
 └── worst_classes_by_f1.png
 ```
 
-## Baseline CNN evaluation
+Evaluation reports and plots are generated artifacts and are not committed.
 
-After training the baseline model, run:
+### Baseline CNN evaluation
 
 ```bash
 uv run python -m card_recognizer.evaluation.evaluate \
@@ -680,23 +595,20 @@ uv run python -m card_recognizer.evaluation.evaluate \
   evaluation.split=test
 ```
 
-Expected MLflow run name:
-
-```text
-evaluation-baseline_cnn
-```
-
-Useful local checks:
+Smoke evaluation with fewer bootstrap samples:
 
 ```bash
-cat reports/evaluation/baseline_cnn/summary_metrics.json
-head -5 reports/evaluation/baseline_cnn/classification_report.csv
-head -5 reports/evaluation/baseline_cnn/predictions.csv
+uv run python -m card_recognizer.evaluation.evaluate \
+  model=baseline_cnn \
+  optimizer=adam \
+  trainer=gpu \
+  data.batch_size=64 \
+  data.num_workers=4 \
+  evaluation.split=test \
+  evaluation.bootstrap.num_samples=50
 ```
 
-## EfficientNet-B0 evaluation
-
-After training EfficientNet-B0, run:
+### EfficientNet-B0 evaluation
 
 ```bash
 uv run python -m card_recognizer.evaluation.evaluate \
@@ -709,71 +621,119 @@ uv run python -m card_recognizer.evaluation.evaluate \
   evaluation.split=test
 ```
 
-`model.pretrained=false` is useful for evaluation when the architecture is created before loading checkpoint weights. The trained weights are loaded from the checkpoint.
+`model.pretrained=false` avoids downloading pretrained weights during evaluation. The trained weights are loaded from the checkpoint.
 
-## Training and evaluation plots
+## Model comparison and best-model selection
 
-Training plots are saved under:
-
-```text
-plots/<model_name>/
-```
-
-For the baseline CNN, training may generate:
-
-```text
-plots/baseline_cnn/
-├── accuracy.png
-├── loss.png
-├── macro_f1.png
-├── metrics_history.json
-└── top3_accuracy.png
-```
-
-Evaluation may additionally generate:
-
-```text
-plots/baseline_cnn/
-├── confusion_matrix.png
-├── confusion_matrix_normalized.png
-└── worst_classes_by_f1.png
-```
-
-Very short smoke runs may produce sparse or visually empty training plots because there are too few epochs. For meaningful plots, run at least 3 epochs.
-
-## Checkpoints
-
-Checkpoints are saved under:
-
-```text
-artifacts/checkpoints/<model_name>/
-```
-
-For the baseline CNN:
-
-```text
-artifacts/checkpoints/baseline_cnn/
-```
-
-Checkpoint files are local/generated artifacts and must not be committed to git.
-
-## Development checks
-
-Before committing changes, run:
+Selection entrypoint:
 
 ```bash
-uv run pytest
-uv run pre-commit run --all-files
+uv run python -m card_recognizer.selection.select_best_model
 ```
 
-If pre-commit modifies files, stage the changes and run it again:
+The selection pipeline reads:
+
+```text
+reports/evaluation/<model_name>/summary_metrics.json
+reports/evaluation/<model_name>/bootstrap_confidence_intervals.csv
+```
+
+It generates:
+
+```text
+reports/model_comparison/
+├── best_model.json
+├── comparison.csv
+└── comparison.md
+```
+
+Selection config:
+
+```text
+configs/selection/default.yaml
+```
+
+Default metric:
+
+```yaml
+metric: macro_f1
+higher_is_better: true
+```
+
+Default models:
+
+```yaml
+models:
+  - baseline_cnn
+  - efficientnet_b0
+```
+
+Run comparison after evaluating models:
 
 ```bash
-git add .
-uv run pre-commit run --all-files
+uv run python -m card_recognizer.selection.select_best_model
 ```
 
-## Git hygiene
+If only baseline has been evaluated:
+
+```bash
+uv run python -m card_recognizer.selection.select_best_model \
+  selection.models='[baseline_cnn]'
+```
+
+Useful local checks:
+
+```bash
+cat reports/model_comparison/best_model.json
+cat reports/model_comparison/comparison.md
+```
+
+Model comparison outputs are generated reports and are not committed.
+
+## Google Colab workflow plan
+
+Local development is used for:
+
+- implementation;
+- unit tests;
+- pre-commit checks;
+- smoke training;
+- smoke evaluation.
+
+Google Colab is planned for:
+
+- longer baseline CNN runs;
+- longer EfficientNet-B0 runs;
+- final model comparison;
+- final checkpoint generation before ONNX/TensorRT export.
+
+The repository remains the source of truth. Colab is used only as a compute backend.
+
+Planned additions:
+
+```text
+configs/trainer/colab.yaml
+configs/logging/colab.yaml
+scripts/colab_setup.sh
+docs/colab_training.md or notebooks/colab_training.ipynb
+```
+
+Expected Colab process:
+
+```text
+1. Enable GPU runtime.
+2. Clone the GitHub repository.
+3. Install uv.
+4. Run uv sync --dev.
+5. Pull data through DVC or download through Kaggle.
+6. Start or configure MLflow tracking.
+7. Run long training.
+8. Run evaluation.
+9. Run model comparison.
+10. Save the best checkpoint and reports.
+```
+
+## Generated artifacts and git hygiene
 
 Generated/local artifacts must not be committed:
 
@@ -785,6 +745,7 @@ artifacts/checkpoints/
 plots/baseline_cnn/
 plots/efficientnet_b0/
 reports/evaluation/
+reports/model_comparison/
 mlruns/
 mlflow.db
 *.ckpt
@@ -805,7 +766,28 @@ plots/.gitkeep
 reports/.gitkeep
 ```
 
-DVC metadata files such as `.dvc` files should be committed because they allow other users to reproduce the data state without committing the actual data files.
+DVC metadata files such as `.dvc` files should be committed.
+
+## Development checks before commit
+
+```bash
+uv run pytest
+uv run pre-commit run --all-files
+```
+
+If pre-commit modifies files:
+
+```bash
+git add .
+uv run pre-commit run --all-files
+```
+
+Check that generated reports are not staged:
+
+```bash
+git status --short --untracked-files=all
+git check-ignore -v reports/model_comparison/best_model.json
+```
 
 ## Current status
 
@@ -816,7 +798,7 @@ Implemented:
 - pinned Python version;
 - Ruff formatting and linting;
 - pre-commit hooks;
-- Hydra configuration skeleton;
+- Hydra configuration;
 - Kaggle dataset download utility;
 - dataset validation utility;
 - deterministic `class_to_idx.json` generation;
@@ -827,30 +809,32 @@ Implemented:
 - baseline CNN;
 - EfficientNet-B0 transfer learning support;
 - model factory;
-- PyTorch Lightning multiclass classification module;
+- Lightning multiclass classification module;
 - metrics with TorchMetrics;
 - checkpointing and early stopping callbacks;
 - MLflow Tracking Server script;
-- Lightning MLflow logger integration;
+- MLflow logger integration;
 - hyperparameter logging;
-- git commit hash logging;
-- git dirty-state logging;
+- git metadata logging;
 - local training plots;
 - plot artifact logging to MLflow;
-- CUDA/GPU training verification for baseline CNN;
+- CUDA/GPU training verification;
 - standalone evaluation pipeline;
 - summary evaluation metrics;
+- bootstrap confidence intervals;
 - per-class classification report;
 - predictions table;
 - confusion matrix CSV;
 - confusion matrix plots;
 - worst-classes-by-F1 plot;
-- evaluation artifacts logged to MLflow.
+- evaluation artifacts logged to MLflow;
+- model comparison;
+- best-model selection by configurable metric.
 
 Not implemented yet:
 
-- final EfficientNet-B0 experiment comparison;
-- bootstrap confidence intervals;
+- Colab workflow documentation/scripts;
+- final EfficientNet-B0 long experiment;
 - ONNX export;
 - TensorRT export;
 - local inference API;
@@ -858,8 +842,9 @@ Not implemented yet:
 
 ## Next steps
 
-- Run a longer EfficientNet-B0 experiment on GPU.
-- Compare baseline CNN and EfficientNet-B0 in MLflow.
-- Add bootstrap confidence intervals for small validation/test splits.
-- Export the best model to ONNX.
+- Add Google Colab workflow for longer GPU training.
+- Run longer EfficientNet-B0 experiments on Colab.
+- Compare baseline CNN and EfficientNet-B0 using `macro_f1`.
+- Select the best checkpoint.
+- Export the selected model to ONNX.
 - Prepare TensorRT and Triton serving.
