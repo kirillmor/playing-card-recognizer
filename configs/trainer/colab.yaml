@@ -1,0 +1,27 @@
+name: colab
+
+max_epochs: 25
+accelerator: gpu
+devices: 1
+precision: 16-mixed
+
+log_every_n_steps: 10
+check_val_every_n_epoch: 1
+
+limit_train_batches: 1.0
+limit_val_batches: 1.0
+limit_test_batches: 1.0
+
+deterministic: true
+enable_progress_bar: true
+
+early_stopping:
+  enabled: true
+  monitor: val_macro_f1
+  mode: max
+  patience: 7
+
+checkpoint:
+  monitor: val_macro_f1
+  mode: max
+  save_top_k: 1
