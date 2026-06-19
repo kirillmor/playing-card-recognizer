@@ -2,7 +2,9 @@ name: colab_mlflow
 
 enabled: true
 
-tracking_uri: http://127.0.0.1:8080
+# In Colab, port 8080 may be occupied by Jupyter Server.
+# Use a separate MLflow tracking port inside the Colab runtime.
+tracking_uri: http://127.0.0.1:5000
 experiment_name: card-recognition-colab
 run_name: ${model.name}-${trainer.name}
 

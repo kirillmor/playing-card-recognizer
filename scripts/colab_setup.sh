@@ -2,10 +2,10 @@
 set -euo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-/content/playing-card-recognizer}"
-PYTHON_VERSION="${PYTHON_VERSION:-3.13.14}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
 
 echo "[Colab setup] Project root: ${PROJECT_ROOT}"
-echo "[Colab setup] Python version: ${PYTHON_VERSION}"
+echo "[Colab setup] Python version selector: ${PYTHON_VERSION}"
 
 cd "${PROJECT_ROOT}"
 
@@ -19,18 +19,29 @@ fi
 
 export PATH="${HOME}/.local/bin:${PATH}"
 
-echo "[Colab setup] Installing pinned Python..."
+# Colab/Jupyter may set an inline matplotlib backend that is invalid
+# inside the uv virtual environment used by CLI commands.
+# Agg is non-interactive and works for saving plots to PNG files.
+export MPLBACKEND="${MPLBACKEND:-Agg}"
+
+echo "[Colab setup] uv version:"
+uv --version
+
+echo "[Colab setup] Installing Python..."
 uv python install "${PYTHON_VERSION}"
 
 echo "[Colab setup] Synchronizing dependencies..."
-uv sync --dev
+uv sync --dev --python "${PYTHON_VERSION}"
 
 echo "[Colab setup] Checking environment..."
-uv run python --version
+uv run --python "${PYTHON_VERSION}" python --version
 
-uv run python - <<'PY'
+uv run --python "${PYTHON_VERSION}" python - <<'PY'
+import os
+
 import torch
 
+print("MPLBACKEND:", os.environ.get("MPLBACKEND"))
 print("torch:", torch.__version__)
 print("cuda available:", torch.cuda.is_available())
 print("cuda version:", torch.version.cuda)
