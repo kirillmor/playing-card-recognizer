@@ -4,6 +4,7 @@ from omegaconf import DictConfig
 from torch import nn
 
 from card_recognizer.models.baseline_cnn import BaselineCNN
+from card_recognizer.models.efficientnet import EfficientNetB0Classifier
 
 
 def create_model(model_config: DictConfig) -> nn.Module:
@@ -22,8 +23,16 @@ def create_model(model_config: DictConfig) -> nn.Module:
         )
 
     if model_name == "efficientnet_b0":
-        raise NotImplementedError(
-            "EfficientNet-B0 will be implemented after the baseline training pipeline."
+        model = EfficientNetB0Classifier(
+            num_classes=int(model_config.num_classes),
+            pretrained=bool(model_config.pretrained),
+            dropout=float(model_config.dropout),
         )
+
+        freeze_backbone_epochs = int(model_config.training_strategy.freeze_backbone_epochs)
+        if freeze_backbone_epochs > 0:
+            model.freeze_backbone()
+
+        return model
 
     raise ValueError(f"Unknown model name: {model_name}")

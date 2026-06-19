@@ -8,6 +8,32 @@ The goal of this project is to build an image classification system that recogni
 
 The project is focused not only on model quality, but also on reproducibility, experiment tracking, data versioning, model packaging, and inference serving.
 
+## Current verified stage
+
+At the current stage, the project has a working GPU-enabled baseline training pipeline with MLflow experiment tracking.
+
+Verified locally:
+
+```text
+GPU: NVIDIA GeForce RTX 3050 Ti Laptop GPU
+VRAM: 4096 MiB
+PyTorch: CUDA-enabled build
+Training backend: PyTorch Lightning
+Experiment tracking: MLflow Tracking Server
+```
+
+The following GPU run has been tested successfully:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  model=baseline_cnn \
+  optimizer=adam \
+  trainer=gpu \
+  data.batch_size=64 \
+  data.num_workers=4 \
+  trainer.max_epochs=3
+```
+
 ## Python version
 
 This project is pinned to Python 3.13.14.
@@ -33,86 +59,15 @@ Python 3.13.14
 - Hydra
 - DVC
 - MLflow
+- Ruff
+- pre-commit
+- uv
+
+Planned production stack:
+
 - ONNX
 - TensorRT
 - Triton Inference Server
-
-## Repository structure
-
-Current high-level structure:
-
-```text
-playing-card-recognizer/
-├── configs/
-│   ├── config.yaml
-│   ├── data/
-│   │   └── cards.yaml
-│   ├── inference/
-│   │   └── local.yaml
-│   ├── logging/
-│   │   └── mlflow.yaml
-│   ├── model/
-│   │   ├── baseline_cnn.yaml
-│   │   └── efficientnet_b0.yaml
-│   ├── optimizer/
-│   │   ├── adam.yaml
-│   │   └── adamw.yaml
-│   └── trainer/
-│       ├── cpu.yaml
-│       └── gpu.yaml
-├── card_recognizer/
-│   ├── __init__.py
-│   ├── commands.py
-│   ├── data/
-│   │   ├── __init__.py
-│   │   ├── datamodule.py
-│   │   ├── download.py
-│   │   ├── inspect.py
-│   │   ├── transforms.py
-│   │   └── validate.py
-│   ├── export/
-│   ├── inference/
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── baseline_cnn.py
-│   │   ├── factory.py
-│   │   └── lightning_module.py
-│   ├── training/
-│   │   ├── __init__.py
-│   │   ├── mlflow_utils.py
-│   │   ├── plots.py
-│   │   └── train.py
-│   └── utils/
-│       ├── __init__.py
-│       └── git.py
-├── tests/
-│   ├── test_configs.py
-│   ├── test_datamodule.py
-│   ├── test_data_validation.py
-│   ├── test_git_utils.py
-│   ├── test_lightning_module.py
-│   ├── test_mlflow_utils.py
-│   ├── test_models.py
-│   ├── test_package.py
-│   └── test_plots.py
-├── scripts/
-│   └── run_mlflow_server.sh
-├── data/
-│   └── raw/
-│       └── cards.dvc
-├── artifacts/
-│   └── class_to_idx.json.dvc
-├── plots/
-├── reports/
-├── .dvc/
-├── .dvcignore
-├── .gitignore
-├── .python-version
-├── .pre-commit-config.yaml
-├── pyproject.toml
-├── uv.lock
-└── README.md
-```
 
 ## Setup
 
@@ -124,11 +79,10 @@ uv python pin 3.13.14
 uv sync --dev
 ```
 
-Install and run pre-commit checks:
+Install pre-commit hooks:
 
 ```bash
 uv run pre-commit install
-uv run pre-commit run --all-files
 ```
 
 Run tests:
@@ -137,27 +91,42 @@ Run tests:
 uv run pytest
 ```
 
-Check the project CLI:
+Run all quality checks:
 
 ```bash
-uv run card-recognizer
+uv run pre-commit run --all-files
 ```
 
-## Dependency notes
+## CUDA / GPU verification
 
-The project uses MLflow together with Python 3.13. The dependency constraints should keep MLflow compatible with pandas and protobuf:
+Check that the NVIDIA driver is visible:
+
+```bash
+nvidia-smi
+```
+
+Check that PyTorch sees CUDA:
+
+```bash
+uv run python - <<'PY'
+import torch
+
+print("torch:", torch.__version__)
+print("cuda available:", torch.cuda.is_available())
+print("cuda version:", torch.version.cuda)
+print("device count:", torch.cuda.device_count())
+
+if torch.cuda.is_available():
+    print("device name:", torch.cuda.get_device_name(0))
+PY
+```
+
+Expected behavior:
 
 ```text
-pandas>=2.2,<3
-mlflow==3.14.0
-protobuf>=5.29,<6
-```
-
-Verify MLflow:
-
-```bash
-uv run python -c "import pandas; import mlflow; import google.protobuf; print('pandas', pandas.__version__); print('mlflow', mlflow.__version__); print('protobuf', google.protobuf.__version__)"
-uv run mlflow --version
+cuda available: True
+device count: 1
+device name: NVIDIA GeForce RTX 3050 Ti Laptop GPU
 ```
 
 ## Configuration
@@ -190,7 +159,15 @@ The default configuration currently uses:
 - logging config: `configs/logging/mlflow.yaml`
 - inference config: `configs/inference/local.yaml`
 
-The EfficientNet-B0 config is already present, but the current training pipeline starts with the baseline CNN because it is simpler and easier to debug end-to-end.
+The GPU trainer config uses:
+
+```yaml
+accelerator: gpu
+devices: 1
+precision: 16-mixed
+```
+
+Mixed precision is useful on laptop GPUs because it reduces VRAM usage and can speed up training.
 
 ## Dataset
 
@@ -205,24 +182,23 @@ The expected raw dataset layout is:
 ```text
 data/raw/cards/
 ├── train/
-│   ├── ace of clubs/
-│   ├── ace of diamonds/
-│   └── ...
 ├── valid/
-│   ├── ace of clubs/
-│   ├── ace of diamonds/
-│   └── ...
 └── test/
-    ├── ace of clubs/
-    ├── ace of diamonds/
-    └── ...
 ```
 
 Each split contains one subdirectory per class.
 
+Expected dataset summary:
+
+```text
+train: 53 classes, 7624 images
+valid: 53 classes, 265 images
+test: 53 classes, 265 images
+```
+
 ## Kaggle credentials
 
-For local development, the dataset may be downloaded from Kaggle. Depending on the local environment and Kaggle access settings, credentials may be required.
+For local development, the dataset may be downloaded from Kaggle.
 
 Option 1: environment variables:
 
@@ -262,14 +238,6 @@ The validation command checks that:
 - the train split contains the expected number of classes;
 - image files can be opened with Pillow;
 - `artifacts/class_to_idx.json` is generated.
-
-Expected dataset summary:
-
-```text
-train: 53 classes, 7624 images
-valid: 53 classes, 265 images
-test: 53 classes, 265 images
-```
 
 ## DVC
 
@@ -335,18 +303,16 @@ Run with the default config:
 uv run python -m card_recognizer.data.inspect
 ```
 
-For CPU-friendly debugging:
+For debugging:
 
 ```bash
 uv run python -m card_recognizer.data.inspect data.batch_size=8 data.num_workers=0
 ```
 
-Expected dataset summary:
+For a faster local run with worker processes:
 
-```text
-train: 7624 samples, 53 classes
-valid: 265 samples, 53 classes
-test: 265 samples, 53 classes
+```bash
+uv run python -m card_recognizer.data.inspect data.batch_size=32 data.num_workers=4
 ```
 
 Expected batch format:
@@ -356,9 +322,11 @@ images: [batch_size, 3, 224, 224], dtype=torch.float32
 labels: [batch_size], dtype=torch.int64
 ```
 
-## Baseline model
+## Models
 
-The current baseline is a small convolutional neural network implemented in:
+### Baseline CNN
+
+The baseline model is implemented in:
 
 ```text
 card_recognizer/models/baseline_cnn.py
@@ -381,7 +349,29 @@ Head:
 AdaptiveAvgPool2d -> Flatten -> Dropout -> Linear(num_classes)
 ```
 
-The baseline is intentionally simple. Its purpose is to verify the full training pipeline before adding transfer learning with EfficientNet-B0.
+The baseline is intentionally simple. Its purpose is to verify the full MLOps pipeline before comparing it with a stronger transfer learning model.
+
+### EfficientNet-B0
+
+The project also includes EfficientNet-B0 configuration and transfer learning support.
+
+Expected strategy:
+
+```text
+1. Replace the classifier head with a 53-class head.
+2. Freeze the pretrained backbone for the first training stage.
+3. Train the classification head.
+4. Unfreeze the backbone.
+5. Fine-tune with separate learning rates for backbone and head.
+```
+
+The EfficientNet-B0 model uses the `adamw` optimizer config with separate learning rates:
+
+```yaml
+backbone_lr: 0.0001
+head_lr: 0.001
+weight_decay: 0.0001
+```
 
 ## Training
 
@@ -391,12 +381,12 @@ The training entrypoint is:
 uv run python -m card_recognizer.training.train
 ```
 
-The training pipeline currently includes:
+The training pipeline includes:
 
 - Hydra config loading;
 - deterministic seeding;
 - `CardsDataModule`;
-- baseline CNN model creation;
+- model factory;
 - PyTorch Lightning `LightningModule`;
 - `CrossEntropyLoss`;
 - Adam/AdamW optimizer support;
@@ -445,7 +435,7 @@ Start the local MLflow Tracking Server in a separate terminal:
 uv run bash scripts/run_mlflow_server.sh
 ```
 
-The script starts MLflow on:
+The server is available at:
 
 ```text
 http://127.0.0.1:8080
@@ -465,79 +455,69 @@ mlruns/
 
 Both `mlflow.db` and `mlruns/` are local generated artifacts and must not be committed to git.
 
-## Smoke training with MLflow
+To reset local MLflow state during development:
 
-Run a short CPU-friendly smoke training job:
+```bash
+rm -rf mlruns mlflow.db
+```
+
+## Baseline CNN GPU training
+
+Run the verified baseline GPU training command:
 
 ```bash
 uv run python -m card_recognizer.training.train \
-  data.batch_size=8 \
-  data.num_workers=0 \
-  trainer.max_epochs=1 \
-  trainer.limit_train_batches=5 \
-  trainer.limit_val_batches=2 \
-  trainer.limit_test_batches=2
+  model=baseline_cnn \
+  optimizer=adam \
+  trainer=gpu \
+  data.batch_size=64 \
+  data.num_workers=4 \
+  trainer.max_epochs=3
 ```
 
-Expected behavior:
+This command should:
 
-- train dataloader is created;
-- model forward pass works;
-- loss is computed;
-- validation runs;
-- metrics are computed;
-- MLflow run is created;
-- hyperparameters are logged;
-- git metadata is logged;
-- checkpoint is saved;
-- local plots are saved;
-- plots are logged to MLflow artifacts;
-- test evaluation runs using the best checkpoint.
+- use the CUDA GPU;
+- create an MLflow run;
+- log hyperparameters;
+- log train/validation/test metrics;
+- log git metadata;
+- save checkpoints;
+- save plots under `plots/baseline_cnn/`;
+- log plot artifacts to MLflow.
 
-Open the MLflow UI:
+## EfficientNet-B0 GPU training
 
-```text
-http://127.0.0.1:8080
-```
-
-Expected MLflow experiment:
-
-```text
-card-recognition
-```
-
-Expected MLflow run content:
-
-```text
-params
-metrics
-artifacts
-tags
-```
-
-Useful metadata to check:
-
-```text
-git_commit
-git_dirty
-```
-
-## Training without MLflow
-
-For local debugging, MLflow can be disabled:
+For EfficientNet-B0 on a 4 GB laptop GPU, start with a smaller batch size:
 
 ```bash
 uv run python -m card_recognizer.training.train \
-  logging.enabled=false \
+  model=efficientnet_b0 \
+  optimizer=adamw \
+  trainer=gpu \
   data.batch_size=8 \
-  data.num_workers=0 \
-  trainer.max_epochs=1 \
-  trainer.limit_train_batches=5 \
-  trainer.limit_val_batches=2 \
-  trainer.limit_test_batches=2
+  data.num_workers=4 \
+  trainer.max_epochs=3
 ```
 
-Local plots are still saved if `logging.save_plots=true`.
+If there is no CUDA out-of-memory error, try:
+
+```bash
+uv run python -m card_recognizer.training.train \
+  model=efficientnet_b0 \
+  optimizer=adamw \
+  trainer=gpu \
+  data.batch_size=16 \
+  data.num_workers=4 \
+  trainer.max_epochs=10
+```
+
+If CUDA runs out of memory, decrease the batch size:
+
+```text
+data.batch_size=8
+data.batch_size=4
+```
 
 ## Training plots
 
@@ -558,7 +538,7 @@ plots/baseline_cnn/
 └── top3_accuracy.png
 ```
 
-At least three plots are generated during training. These plots are local generated artifacts and should not be committed to git.
+Very short smoke runs may produce sparse or visually empty plots because there are too few epochs. For meaningful plots, run at least 3 epochs.
 
 ## Checkpoints
 
@@ -574,37 +554,7 @@ For the baseline CNN:
 artifacts/checkpoints/baseline_cnn/
 ```
 
-Check generated checkpoints:
-
-```bash
-find artifacts/checkpoints -maxdepth 3 -type f | sort
-```
-
 Checkpoint files are local/generated artifacts and must not be committed to git.
-
-## Full baseline training
-
-Run a longer baseline training job on CPU:
-
-```bash
-uv run python -m card_recognizer.training.train \
-  model=baseline_cnn \
-  optimizer=adam \
-  trainer=cpu \
-  data.batch_size=32 \
-  data.num_workers=0 \
-  trainer.max_epochs=3
-```
-
-If a GPU is available, use:
-
-```bash
-uv run python -m card_recognizer.training.train \
-  model=baseline_cnn \
-  optimizer=adam \
-  trainer=gpu \
-  data.batch_size=64
-```
 
 ## Development checks
 
@@ -642,9 +592,8 @@ mlflow.db
 *.engine
 *.trt
 kaggle.json
+__pycache__/
 ```
-
-Hydra creates `outputs/` directories for local run artifacts. They are useful for debugging individual runs, but they should stay out of git.
 
 DVC metadata files such as `.dvc` files should be committed because they allow other users to reproduce the data state without committing the actual data files.
 
@@ -657,7 +606,6 @@ Implemented:
 - pinned Python version
 - Ruff formatting and linting
 - pre-commit hooks
-- basic package import test
 - Hydra configuration skeleton
 - Kaggle dataset download utility
 - dataset validation utility
@@ -666,12 +614,11 @@ Implemented:
 - image preprocessing and augmentation transforms
 - PyTorch Lightning DataModule
 - DataModule inspection command
-- DataModule tests on a tiny synthetic ImageFolder dataset
 - baseline CNN
+- EfficientNet-B0 transfer learning support
 - model factory
 - PyTorch Lightning multiclass classification module
 - metrics with TorchMetrics
-- baseline smoke training pipeline
 - checkpointing and early stopping callbacks
 - MLflow Tracking Server script
 - Lightning MLflow logger integration
@@ -680,19 +627,21 @@ Implemented:
 - git dirty-state logging
 - local training plots
 - plot artifact logging to MLflow
-- metrics history JSON
+- CUDA/GPU training verification for baseline CNN
 
 Not implemented yet:
 
-- EfficientNet-B0 fine-tuning
-- ONNX/TensorRT export
+- final EfficientNet-B0 experiment comparison
+- richer evaluation reports
+- ONNX export
+- TensorRT export
 - local inference API
 - Triton inference serving
 
 ## Next steps
 
-- Implement EfficientNet-B0 transfer learning
-- Compare baseline CNN and EfficientNet-B0
-- Add richer evaluation reports
-- Export the best model to ONNX
-- Prepare TensorRT and Triton serving
+- Run a longer EfficientNet-B0 experiment on GPU.
+- Compare baseline CNN and EfficientNet-B0 in MLflow.
+- Add evaluation reports and confusion matrix.
+- Export the best model to ONNX.
+- Prepare TensorRT and Triton serving.

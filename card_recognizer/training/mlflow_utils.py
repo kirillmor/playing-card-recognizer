@@ -32,12 +32,21 @@ def build_mlflow_logger(config: DictConfig) -> MLFlowLogger | bool:
     if not bool(config.logging.enabled):
         return False
 
-    return MLFlowLogger(
+    logger = MLFlowLogger(
         experiment_name=str(config.logging.experiment_name),
         run_name=str(config.logging.run_name),
         tracking_uri=str(config.logging.tracking_uri),
         log_model=bool(config.logging.log_model),
     )
+
+    # Force lazy MLflow run creation immediately.
+    _ = logger.experiment
+    _ = logger.run_id
+
+    # Log a tiny technical metric so the run appears in MLflow immediately.
+    logger.log_metrics({"run_started": 1.0}, step=0)
+
+    return logger
 
 
 def log_hyperparameters_and_git_metadata(
@@ -64,8 +73,11 @@ def log_hyperparameters_and_git_metadata(
                 "git.dirty": git_dirty,
             }
         )
-        logger.experiment.set_tag(logger.run_id, "git_commit", git_commit)
-        logger.experiment.set_tag(logger.run_id, "git_dirty", str(git_dirty))
+
+        run_id = logger.run_id
+        if run_id is not None:
+            logger.experiment.set_tag(run_id, "git_commit", git_commit)
+            logger.experiment.set_tag(run_id, "git_dirty", str(git_dirty))
 
 
 def log_artifacts_directory(
@@ -80,8 +92,12 @@ def log_artifacts_directory(
     if not local_dir.exists():
         return
 
+    run_id = logger.run_id
+    if run_id is None:
+        return
+
     logger.experiment.log_artifacts(
-        run_id=logger.run_id,
+        run_id=run_id,
         local_dir=str(local_dir),
         artifact_path=artifact_path,
     )

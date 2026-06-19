@@ -131,19 +131,17 @@ class CardClassifierModule(L.LightningModule):
     def configure_optimizers(self) -> Any:
         """Configure optimizer and optional scheduler."""
         optimizer_name = str(self.optimizer_config.name).lower()
-        learning_rate = self._get_learning_rate()
         weight_decay = float(self.optimizer_config.get("weight_decay", 0.0))
+        parameters = self._get_optimizer_parameters()
 
         if optimizer_name == "adam":
             optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=learning_rate,
+                parameters,
                 weight_decay=weight_decay,
             )
         elif optimizer_name == "adamw":
             optimizer = torch.optim.AdamW(
-                self.parameters(),
-                lr=learning_rate,
+                parameters,
                 weight_decay=weight_decay,
             )
         else:
@@ -177,16 +175,28 @@ class CardClassifierModule(L.LightningModule):
 
         return loss, logits, targets
 
-    def _get_learning_rate(self) -> float:
-        """Get learning rate from optimizer config.
+    def _get_optimizer_parameters(self) -> Any:
+        """Return optimizer parameters or parameter groups."""
+        if "head_lr" in self.optimizer_config and "backbone_lr" in self.optimizer_config:
+            if hasattr(self.model, "get_parameter_groups"):
+                return self.model.get_parameter_groups(
+                    backbone_lr=float(self.optimizer_config.backbone_lr),
+                    head_lr=float(self.optimizer_config.head_lr),
+                )
 
-        Baseline configs use `lr`.
-        Fine-tuning configs may use `head_lr` and `backbone_lr`.
-        """
+            return [
+                {
+                    "params": self.parameters(),
+                    "lr": float(self.optimizer_config.head_lr),
+                }
+            ]
+
         if "lr" in self.optimizer_config:
-            return float(self.optimizer_config.lr)
+            return [
+                {
+                    "params": self.parameters(),
+                    "lr": float(self.optimizer_config.lr),
+                }
+            ]
 
-        if "head_lr" in self.optimizer_config:
-            return float(self.optimizer_config.head_lr)
-
-        raise ValueError("Optimizer config must contain either `lr` or `head_lr`.")
+        raise ValueError("Optimizer config must contain either `lr` or `head_lr/backbone_lr`.")

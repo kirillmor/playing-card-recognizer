@@ -12,6 +12,7 @@ from rich.console import Console
 from card_recognizer.data.datamodule import CardsDataModule
 from card_recognizer.models.factory import create_model
 from card_recognizer.models.lightning_module import CardClassifierModule
+from card_recognizer.training.finetuning import BackboneUnfreezingCallback
 from card_recognizer.training.mlflow_utils import (
     build_mlflow_logger,
     log_artifacts_directory,
@@ -48,6 +49,15 @@ def build_callbacks(config: DictConfig, project_root: Path) -> list[Any]:
                 patience=int(config.trainer.early_stopping.patience),
             )
         )
+
+    if str(config.model.name) == "efficientnet_b0":
+        freeze_backbone_epochs = int(config.model.training_strategy.freeze_backbone_epochs)
+        if freeze_backbone_epochs > 0:
+            callbacks.append(
+                BackboneUnfreezingCallback(
+                    unfreeze_at_epoch=freeze_backbone_epochs,
+                )
+            )
 
     if bool(config.logging.save_plots):
         callbacks.append(
@@ -104,6 +114,10 @@ def main(config: DictConfig) -> None:
     )
 
     logger = build_mlflow_logger(config)
+
+    if logger:
+        console.print(f"[bold]MLflow run id:[/bold] {logger.run_id}")
+
     log_hyperparameters_and_git_metadata(
         logger=logger,
         config=config,
