@@ -95,6 +95,120 @@ def compute_top_k_accuracy(
     return float(correct.to(dtype=torch.float32).mean().item())
 
 
+def compute_summary_metrics_from_outputs(
+    logits: Tensor,
+    targets: Tensor,
+    num_classes: int,
+    class_names: list[str],
+    top_k: int,
+) -> dict[str, Any]:
+    """Compute summary metrics directly from logits and targets."""
+    predictions = logits.argmax(dim=1)
+
+    confusion_matrix = compute_confusion_matrix(
+        targets=targets,
+        predictions=predictions,
+        num_classes=num_classes,
+    )
+    classification_report = build_classification_report(
+        confusion_matrix=confusion_matrix,
+        class_names=class_names,
+    )
+    top_k_accuracy = compute_top_k_accuracy(
+        logits=logits,
+        targets=targets,
+        top_k=top_k,
+    )
+
+    return summarize_metrics(
+        confusion_matrix=confusion_matrix,
+        classification_report=classification_report,
+        top_k_accuracy=top_k_accuracy,
+    )
+
+
+def bootstrap_summary_metric_confidence_intervals(
+    logits: Tensor,
+    targets: Tensor,
+    num_classes: int,
+    class_names: list[str],
+    top_k: int,
+    num_bootstrap_samples: int,
+    confidence_level: float,
+    seed: int,
+) -> pd.DataFrame:
+    """Estimate confidence intervals for summary metrics using bootstrap sampling."""
+    if num_bootstrap_samples <= 0:
+        raise ValueError("num_bootstrap_samples must be positive.")
+
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be between 0 and 1.")
+
+    logits = logits.cpu()
+    targets = targets.cpu()
+
+    num_examples = targets.numel()
+    if num_examples == 0:
+        raise ValueError("Cannot bootstrap metrics for an empty target tensor.")
+
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+
+    bootstrap_values: dict[str, list[float]] = {
+        "accuracy": [],
+        "macro_precision": [],
+        "macro_recall": [],
+        "macro_f1": [],
+        "weighted_f1": [],
+        "top_k_accuracy": [],
+    }
+
+    for _ in range(num_bootstrap_samples):
+        sample_indices = torch.randint(
+            low=0,
+            high=num_examples,
+            size=(num_examples,),
+            generator=generator,
+        )
+
+        sampled_logits = logits[sample_indices]
+        sampled_targets = targets[sample_indices]
+
+        metrics = compute_summary_metrics_from_outputs(
+            logits=sampled_logits,
+            targets=sampled_targets,
+            num_classes=num_classes,
+            class_names=class_names,
+            top_k=top_k,
+        )
+
+        for metric_name in bootstrap_values:
+            bootstrap_values[metric_name].append(float(metrics[metric_name]))
+
+    alpha = 1.0 - confidence_level
+    lower_quantile = alpha / 2.0
+    upper_quantile = 1.0 - alpha / 2.0
+
+    rows: list[dict[str, float | str]] = []
+
+    for metric_name, values in bootstrap_values.items():
+        values_tensor = torch.tensor(values, dtype=torch.float64)
+
+        rows.append(
+            {
+                "metric": metric_name,
+                "mean": float(values_tensor.mean().item()),
+                "std": float(values_tensor.std(unbiased=True).item()),
+                "ci_lower": float(torch.quantile(values_tensor, lower_quantile).item()),
+                "ci_upper": float(torch.quantile(values_tensor, upper_quantile).item()),
+                "confidence_level": confidence_level,
+                "num_bootstrap_samples": num_bootstrap_samples,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
 def _safe_divide(numerator: Tensor, denominator: Tensor) -> Tensor:
     """Divide tensors and return zero where denominator is zero."""
     return torch.where(

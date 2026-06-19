@@ -16,6 +16,7 @@ from torchvision.datasets import ImageFolder
 
 from card_recognizer.data.datamodule import CardsDataModule
 from card_recognizer.evaluation.metrics import (
+    bootstrap_summary_metric_confidence_intervals,
     build_classification_report,
     compute_confusion_matrix,
     compute_top_k_accuracy,
@@ -162,6 +163,7 @@ def build_predictions_table(
 def log_evaluation_to_mlflow(
     config: DictConfig,
     summary_metrics: dict[str, Any],
+    bootstrap_report: pd.DataFrame | None,
     report_dir: Path,
     plots_dir: Path,
     checkpoint_path: Path,
@@ -181,6 +183,23 @@ def log_evaluation_to_mlflow(
         for metric_name, metric_value in summary_metrics.items():
             if isinstance(metric_value, int | float):
                 mlflow.log_metric(f"eval_{metric_name}", float(metric_value))
+
+        if bootstrap_report is not None:
+            for row in bootstrap_report.itertuples(index=False):
+                metric_name = str(row.metric)
+                mlflow.log_metric(f"eval_{metric_name}_ci_lower", float(row.ci_lower))
+                mlflow.log_metric(f"eval_{metric_name}_ci_upper", float(row.ci_upper))
+                mlflow.log_metric(f"eval_{metric_name}_bootstrap_mean", float(row.mean))
+                mlflow.log_metric(f"eval_{metric_name}_bootstrap_std", float(row.std))
+
+            mlflow.log_param(
+                "evaluation.bootstrap.num_samples",
+                int(config.evaluation.bootstrap.num_samples),
+            )
+            mlflow.log_param(
+                "evaluation.bootstrap.confidence_level",
+                float(config.evaluation.bootstrap.confidence_level),
+            )
 
         mlflow.log_artifacts(str(report_dir), artifact_path="evaluation")
 
@@ -246,6 +265,20 @@ def main(config: DictConfig) -> None:
         classification_report=classification_report,
         top_k_accuracy=top_k_accuracy,
     )
+
+    bootstrap_report = None
+    if bool(config.evaluation.bootstrap.enabled):
+        bootstrap_report = bootstrap_summary_metric_confidence_intervals(
+            logits=logits,
+            targets=targets,
+            num_classes=int(config.data.num_classes),
+            class_names=dataset.classes,
+            top_k=int(config.evaluation.top_k),
+            num_bootstrap_samples=int(config.evaluation.bootstrap.num_samples),
+            confidence_level=float(config.evaluation.bootstrap.confidence_level),
+            seed=int(config.evaluation.bootstrap.seed),
+        )
+
     predictions_table = build_predictions_table(
         dataset=dataset,
         logits=logits,
@@ -263,6 +296,7 @@ def main(config: DictConfig) -> None:
     report_path = report_dir / "classification_report.csv"
     predictions_path = report_dir / "predictions.csv"
     confusion_matrix_path = report_dir / "confusion_matrix.csv"
+    bootstrap_path = report_dir / "bootstrap_confidence_intervals.csv"
 
     summary_path.write_text(
         json.dumps(summary_metrics, indent=2) + "\n",
@@ -271,6 +305,9 @@ def main(config: DictConfig) -> None:
     classification_report.to_csv(report_path, index=False)
     predictions_table.to_csv(predictions_path, index=False)
     pd.DataFrame(confusion_matrix.numpy()).to_csv(confusion_matrix_path, index=False)
+
+    if bootstrap_report is not None:
+        bootstrap_report.to_csv(bootstrap_path, index=False)
 
     save_confusion_matrix_plot(
         confusion_matrix=confusion_matrix,
@@ -292,6 +329,7 @@ def main(config: DictConfig) -> None:
     log_evaluation_to_mlflow(
         config=config,
         summary_metrics=summary_metrics,
+        bootstrap_report=bootstrap_report,
         report_dir=report_dir,
         plots_dir=plots_dir,
         checkpoint_path=checkpoint_path,

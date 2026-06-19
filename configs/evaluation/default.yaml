@@ -11,3 +11,9 @@ plots_dir: ${paths.plots_dir}/${model.name}
 
 log_to_mlflow: ${logging.enabled}
 mlflow_run_name: evaluation-${model.name}
+
+bootstrap:
+  enabled: true
+  num_samples: 1000
+  confidence_level: 0.95
+  seed: ${seed}
