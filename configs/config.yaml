@@ -5,6 +5,7 @@ defaults:
   - trainer: cpu
   - logging: mlflow
   - inference: local
+  - evaluation: default
   - _self_
 
 project_name: playing-card-recognizer

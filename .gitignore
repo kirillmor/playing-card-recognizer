@@ -65,3 +65,5 @@ plots/**/*
 
 # Generated reports
 reports/generated/**/*
+reports/evaluation/**/*
+!reports/evaluation/.gitkeep
