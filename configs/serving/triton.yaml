@@ -1,0 +1,29 @@
+name: triton
+model_repository_dir: deployment/triton_model_repository
+input_name: images
+output_name: logits
+image_size: ${data.image_size}
+num_classes: ${data.num_classes}
+max_batch_size: 32
+labels_path: ${data.class_mapping_path}
+onnx_model:
+  enabled: true
+  name: card_recognizer_onnx
+  platform: onnxruntime_onnx
+  version: 1
+  filename: model.onnx
+  source_path: ${paths.artifacts_dir}/exports/onnx/${model.name}/model.onnx
+  instance_kind: KIND_CPU
+tensorrt_model:
+  enabled: true
+  name: card_recognizer_tensorrt
+  platform: tensorrt_plan
+  version: 1
+  filename: model.plan
+  source_path: ${paths.artifacts_dir}/exports/tensorrt/${model.name}/model.plan
+  instance_kind: KIND_GPU
+client:
+  url: localhost:8000
+  model_name: card_recognizer_onnx
+  image_path: null
+  top_k: 3

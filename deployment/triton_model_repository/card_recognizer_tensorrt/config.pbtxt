@@ -1,0 +1,25 @@
+name: "card_recognizer_tensorrt"
+platform: "tensorrt_plan"
+max_batch_size: 32
+
+input [
+  {
+    name: "images"
+    data_type: TYPE_FP32
+    dims: [3, 224, 224]
+  }
+]
+
+output [
+  {
+    name: "logits"
+    data_type: TYPE_FP32
+    dims: [53]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_GPU
+  }
+]

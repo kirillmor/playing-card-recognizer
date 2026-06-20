@@ -1,0 +1,21 @@
+name: tensorrt
+onnx_path: ${paths.artifacts_dir}/exports/onnx/${model.name}/model.onnx
+output_dir: ${paths.artifacts_dir}/exports/tensorrt/${model.name}
+engine_filename: model.plan
+input_name: images
+output_name: logits
+input_channels: 3
+image_size: ${data.image_size}
+min_batch_size: 1
+opt_batch_size: 8
+max_batch_size: 32
+precision: fp16
+trtexec_path: trtexec
+verbose: false
+report_filename: tensorrt_export_report.json
+log_filename: trtexec_export.log
+benchmark:
+  warmup_ms: 200
+  duration_s: 3
+  report_filename: tensorrt_benchmark_report.json
+  log_filename: trtexec_benchmark.log

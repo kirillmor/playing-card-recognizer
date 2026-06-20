@@ -70,4 +70,18 @@ reports/**/*
 *.gz
 
 # Export artifacts
-artifacts/exports/
+# Export artifacts tracked through DVC
+artifacts/exports/**/*.onnx
+artifacts/exports/**/*.plan
+artifacts/exports/**/*.engine
+artifacts/exports/**/*.trt
+artifacts/exports/**/*.log
+artifacts/exports/**/*.json
+!artifacts/exports/**/*.dvc
+
+# TensorRT/Triton runtime artifacts
+deployment/triton_model_repository/**/1/model.onnx
+deployment/triton_model_repository/**/1/model.plan
+deployment/triton_model_repository/**/1/*.engine
+deployment/triton_model_repository/class_to_idx.json
+deployment/triton_model_repository/repository_manifest.json

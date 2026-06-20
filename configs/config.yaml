@@ -7,6 +7,7 @@ defaults:
   - inference: local
   - evaluation: default
   - export: onnx
+  - serving: triton
   - selection: default
   - _self_
 
