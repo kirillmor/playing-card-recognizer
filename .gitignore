@@ -68,3 +68,6 @@ reports/**/*
 !reports/.gitkeep
 
 *.gz
+
+# Export artifacts
+artifacts/exports/

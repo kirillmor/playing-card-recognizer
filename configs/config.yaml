@@ -6,6 +6,7 @@ defaults:
   - logging: mlflow
   - inference: local
   - evaluation: default
+  - export: onnx
   - selection: default
   - _self_
 

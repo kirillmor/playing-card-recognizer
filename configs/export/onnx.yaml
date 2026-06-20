@@ -1,0 +1,29 @@
+name: onnx
+
+# If null, the resolver searches artifacts/checkpoints/<model.name>/
+# and selects the checkpoint with the best monitored metric in the filename.
+checkpoint_path: null
+checkpoint_dir: ${paths.artifacts_dir}/checkpoints/${model.name}
+checkpoint_monitor: val_macro_f1
+checkpoint_mode: max
+
+output_dir: ${paths.artifacts_dir}/exports/onnx/${model.name}
+output_filename: model.onnx
+
+opset_version: 17
+dynamo: false
+
+input_name: images
+output_name: logits
+batch_size: 1
+dynamic_batch: true
+
+atol: 0.0001
+rtol: 0.001
+
+validation:
+  split: test
+  max_batches: null
+  providers: [CPUExecutionProvider]
+  report_dir: ${paths.reports_dir}/export/${model.name}
+  report_filename: onnx_validation.json
